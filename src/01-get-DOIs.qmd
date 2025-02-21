@@ -1,0 +1,142 @@
+---
+title: "01-get-DOIs"
+format: html
+---
+
+## Purpose
+
+Collect the DOIs for every article on the SAJE website
+
+## Planning
+
+There are a few steps
+
+I suppose we want to get the PDFs, the metadata about each article, and then textmine them in some way.
+
+Let's set up a few scripts to do this.
+
+- 01-get-DOIs to set up the scraping and collect the DOIs for each article
+- 02-get-PDFs to download the PDFs for each article
+- 03-get-metadata to extract the metadata from each article
+- 04-textmine to extract the text from each article
+
+Once this works, we can refactor these into a neat pipeline with a Makefile, functions in their own utils file and a main script to run everything.
+
+## Setup
+
+In order to run the scraper, you will need to set up a virtual environment and install the necessary packages.
+
+To do that, run the following commands in your terminal to create a virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+
+# I like the uv package manager
+pip install uv
+```
+
+The install the necessary packages:
+
+```bash
+uv pip install selenium requests undetected_chromedriver 
+```
+
+## Code
+
+The first thing we need to do is visit the site of the SAJE and collect the DOIs for each article.
+
+We can do this by visiting the landing page for the journal, clicking on each issue, and then clicking on each article to get the DOI.
+
+Once we have the unique identifier, we can download them in the next step, as they all have URLs of the following format to do the downloads: 'https://onlinelibrary.wiley.com/doi/pdfdirect/{doi}?download=true', where the DOI is for example, '10.1111/j.1813-6982.1933.tb02985.x'
+
+Here is the beginning of the script we need.
+
+### Worth noting
+
+- We are using the `undetected_chromedriver` package to avoid detection by the anti bot measures of the website that ask for a captcha click to prove that we are not a bot.
+- you will need to have the Chrome browser installed on your machine to run this script. You can read more about it [here](https://developer.chrome.com/docs/chromedriver/get-started)
+- I have commented out the line that says we should run this in headless mode. This means that the browser will open up and you will see the scraping happening. If you want to not see the scraping happening, you can comment out this line. 
+
+```{python}
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+
+# URL of the journal's archive
+archive_url = 'https://onlinelibrary.wiley.com/loi/18136982'
+
+# Set a data directory
+DATA_DIR = 'data'
+
+# Path to save the DOIs
+'saje_article_dois.txt'
+
+DOI_FILE_OUTPUT_PATH = f'{DATA_DIR}/saje_article_dois.txt'
+
+# Configure undetected Chrome
+options = uc.ChromeOptions()
+# options.add_argument('--headless')  # Run in headless mode
+options.add_argument('--disable-gpu')  # Disable GPU acceleration
+options.add_argument('--no-sandbox')  # Bypass OS security model
+options.add_argument('--disable-dev-shm-usage')  # Prevent resource issues
+options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+# Initialize undetected ChromeDriver
+driver = uc.Chrome(options=options)
+
+# Function to extract issue links
+def get_issue_links():
+    driver.get(archive_url)
+    time.sleep(5)  # Allow time for Cloudflare to process
+    issue_links = [link.get_attribute('href') for link in driver.find_elements(By.CSS_SELECTOR, '.visitable')]
+    return issue_links
+
+# Function to extract article links from an issue
+def get_article_links(issue_url):
+    driver.get(issue_url)
+    time.sleep(5)
+    article_links = [link.get_attribute('href') for link in driver.find_elements(By.CSS_SELECTOR, '.PdfLink a')]
+    return article_links
+
+# Function to extract DOIs from an article page
+def get_doi(article_url):
+    driver.get(article_url)
+    try:
+        doi = article_url.split('10.1111/')[-1]
+        return doi
+    except Exception as e:
+        print(f'Error retrieving DOI from {article_url}: {e}')
+        return None
+
+# Main script execution
+try:
+    all_dois = []
+    issue_links = get_issue_links()
+    print(f'Found {len(issue_links)} issues.')
+
+    for issue_url in issue_links:
+        print(f'Processing issue: {issue_url}')
+        article_links = get_article_links(issue_url)
+
+        for article_url in article_links:
+            print(f'Processing article: {article_url}')
+            doi = get_doi(article_url)
+            if doi:
+                all_dois.append(doi)
+                print(f'Found DOI: {doi}')
+            time.sleep(2)  # Be respectful to the server
+
+    # Save DOIs to a file
+    with open(DOI_FILE_OUTPUT_PATH, 'w') as f:
+        for doi in all_dois:
+            f.write(f'{doi}\n')
+
+    print(f'Total DOIs collected: {len(all_dois)}. Saved to saje_article_dois.txt')
+
+finally:
+    driver.quit()
+
+```
