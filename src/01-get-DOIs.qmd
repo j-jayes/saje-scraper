@@ -7,40 +7,9 @@ format: html
 
 Collect the DOIs for every article on the SAJE website
 
-## Planning
-
-There are a few steps
-
-I suppose we want to get the PDFs, the metadata about each article, and then textmine them in some way.
-
-Let's set up a few scripts to do this.
-
-- 01-get-DOIs to set up the scraping and collect the DOIs for each article
-- 02-get-PDFs to download the PDFs for each article
-- 03-get-metadata to extract the metadata from each article
-- 04-textmine to extract the text from each article
-
-Once this works, we can refactor these into a neat pipeline with a Makefile, functions in their own utils file and a main script to run everything.
-
 ## Setup
 
-In order to run the scraper, you will need to set up a virtual environment and install the necessary packages.
-
-To do that, run the following commands in your terminal to create a virtual environment:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-
-# I like the uv package manager
-pip install uv
-```
-
-The install the necessary packages:
-
-```bash
-uv pip install selenium requests undetected_chromedriver 
-```
+Follow the setup instructions in the README to get your environment set up.
 
 ## Code
 
